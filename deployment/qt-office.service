@@ -1,0 +1,46 @@
+[Unit]
+Description=QT Office Check Printing System
+Documentation=https://github.com/your-repo/qt-office
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/qt-office
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=FORCE_HTTPS=true
+Environment=HSTS_MAX_AGE=31536000
+Environment=HSTS_INCLUDE_SUBDOMAINS=true
+Environment=HSTS_PRELOAD=true
+EnvironmentFile=/var/www/qt-office/.env.local
+ExecStart=/usr/bin/node server.js
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qt-office
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/qt-office
+ReadWritePaths=/var/log/qt-office
+ReadWritePaths=/tmp
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target
+
+
+
+
+

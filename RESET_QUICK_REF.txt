@@ -1,0 +1,48 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                  DATABASE RESET - QUICK REFERENCE                 ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+🚀 AUTOMATED RESET (Windows PowerShell)
+────────────────────────────────────────────────────────────────────
+.\scripts\reset-database.ps1
+
+
+📋 MANUAL RESET (Step-by-step)
+────────────────────────────────────────────────────────────────────
+1. Kill Node:        taskkill /F /IM node.exe
+2. Delete Client:    Remove-Item node_modules\.prisma -Recurse -Force
+3. Generate:         npx prisma generate
+4. Reset DB:         npx prisma migrate reset --force --skip-seed
+5. Seed Admin:       npx prisma db seed
+
+
+🔐 LOGIN CREDENTIALS
+────────────────────────────────────────────────────────────────────
+Username:  admin@quicktrackinc.com
+Password:  ChangeMe123!
+Role:      SUPER_ADMIN
+Store:     null (no store assignment)
+
+
+✅ EXPECTED RESULT
+────────────────────────────────────────────────────────────────────
+Users:     1  (SUPER_ADMIN only)
+Stores:    0  (create via admin UI)
+Banks:     0  (create via admin UI)
+Checks:    0  (empty)
+Vendors:   0  (empty)
+
+
+🛠 TROUBLESHOOTING
+────────────────────────────────────────────────────────────────────
+EPERM Error:         Kill Node + delete .prisma folder + retry
+Connection Failed:   Check .env DATABASE_URL
+Can't Login:         Verify username includes @quicktrackinc.com
+                     Verify password is case-sensitive with !
+
+
+📚 DOCUMENTATION
+────────────────────────────────────────────────────────────────────
+Full Guide:          DATABASE_RESET.md
+Seed Script:         prisma/seed.ts
+PowerShell Script:   scripts/reset-database.ps1

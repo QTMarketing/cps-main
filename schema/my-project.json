@@ -1,0 +1,64 @@
+{
+  "libraryName": "Check Printing System",
+  "version": "0.1.0",
+  "docsUrl": "https://github.com/aniltamang/CPS/blob/main/README.md",
+  "codeExamples": [
+    {
+      "title": "Authenticate a User",
+      "description": "Log a user in with email and password and receive a JWT token.",
+      "code": "const response = await fetch('/api/auth/login', {\n  method: 'POST',\n  headers: { 'Content-Type': 'application/json' },\n  body: JSON.stringify({ email, password })\n});\nconst { token } = await response.json();"
+    },
+    {
+      "title": "Create a Check",
+      "description": "Create a new check and auto-increment its check number.",
+      "code": "const payload = {\n  bankId,\n  payeeName: 'ACME Corp',\n  amount: 1250.00,\n  memo: 'Invoice 1234',\n  paymentMethod: 'CHECK'\n};\nconst response = await fetch('/api/checks', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json',\n    Authorization: `Bearer ${token}`\n  },\n  body: JSON.stringify(payload)\n});\nconst { checkNumber } = await response.json();"
+    }
+  ],
+  "metadata": {
+    "functions": [
+      {
+        "name": "loginUser",
+        "location": "src/app/api/auth/login/route.ts",
+        "signature": "(email: string, password: string) => Promise<LoginResponse>",
+        "description": "Authenticates a user by email and password, returning a JWT token and sanitized user payload."
+      },
+      {
+        "name": "createCheck",
+        "location": "src/app/it-office/checks/lib/client-data.ts",
+        "signature": "(data: CreateCheckInput) => Promise<CreateCheckResult>",
+        "description": "Creates a new check record, ensuring the check number is assigned from the per-bank counter."
+      },
+      {
+        "name": "getNextCheckNumber",
+        "location": "src/app/api/checks/next-number/route.ts",
+        "signature": "(bankId: string) => Promise<number>",
+        "description": "Retrieves and increments the next available check number for a given bank within a transaction."
+      }
+    ],
+    "classes": [
+      {
+        "name": "PdfGenerator",
+        "location": "src/lib/pdfGenerator.ts",
+        "description": "Utility that renders check PDFs using bank and payee details." 
+      }
+    ],
+    "props": [
+      {
+        "component": "MakePaymentForm",
+        "location": "src/app/it-office/checks/components/MakePaymentForm.tsx",
+        "props": [
+          {
+            "name": "banks",
+            "type": "BankSummary[]",
+            "description": "List of banks the current user can issue checks from."
+          },
+          {
+            "name": "onSubmit",
+            "type": "(data: CreateCheckInput) => Promise<void>",
+            "description": "Callback invoked when the user submits the form to create a new check."
+          }
+        ]
+      }
+    ]
+  }
+}

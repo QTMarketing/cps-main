@@ -1,0 +1,233 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Bank {
+  id                                  Int          @id @default(autoincrement())
+  bank_name                           String
+  account_number                      BigInt
+  routing_number                      BigInt
+  return_address                      String?
+  return_city                         String?
+  return_state                        String?
+  return_zip                          BigInt?
+  account_name                        String?
+  dba                                 String?
+  signature_name                      String?
+  signature_url                       String?
+  corporation_id                      Int?
+  store_id                            Int?         // Bank belongs to a Store (business entity)
+  created_at                          DateTime     @default(now())
+  account_type                        String       @default("CHECKING")
+  assigned_to_user_id                 Int?         // Deprecated: use UserBank join table
+  Corporation                         Corporation? @relation(fields: [corporation_id], references: [id])
+  Store                               Store?       @relation(fields: [store_id], references: [id])
+  User_Bank_assigned_to_user_idToUser User?        @relation("Bank_assigned_to_user_idToUser", fields: [assigned_to_user_id], references: [id])
+  BankSigner                          BankSigner[]
+  Check                               Check[]
+  User_User_assigned_bank_idToBank    User[]       @relation("User_assigned_bank_idToBank")
+  VendorBank                          VendorBank[]
+  userBanks                           UserBank[]
+  storeBanks                          StoreBank[]
+}
+
+model BankSigner {
+  id         Int     @id @default(autoincrement())
+  bank_id    Int
+  signer_id  Int
+  is_default Boolean @default(false)
+  Bank       Bank    @relation(fields: [bank_id], references: [id])
+  Signer     Signer  @relation(fields: [signer_id], references: [id])
+
+  @@unique([bank_id, signer_id])
+}
+
+model Check {
+  id                 Int      @id @default(autoincrement())
+  check_number       BigInt?
+  payment_method     String   @default("CHECK")
+  status             String   @default("PENDING")
+  bank_id            Int
+  vendor_id          Int?
+  store_id           Int
+  amount             Decimal? @db.Decimal(12, 2)
+  payee_name         String?
+  memo               String?
+  created_at         DateTime @default(now())
+  invoice_url        String?
+  issued_by_username String?
+  Bank               Bank     @relation(fields: [bank_id], references: [id])
+  Vendor             Vendor?  @relation(fields: [vendor_id], references: [id])
+  Store              Store    @relation(fields: [store_id], references: [id])
+}
+
+model Signature {
+  id          Int      @id @default(autoincrement())
+  signer_id   Int
+  storage_key String
+  url         String
+  mime_type   String
+  width       Int?
+  height      Int?
+  uploaded_by Int?
+  uploaded_at DateTime @default(now())
+  is_active   Boolean  @default(true)
+  Signer      Signer   @relation(fields: [signer_id], references: [id])
+}
+
+model Signer {
+  id         Int          @id @default(autoincrement())
+  full_name  String
+  user_id    Int?
+  created_at DateTime     @default(now())
+  BankSigner BankSigner[]
+  Signature  Signature[]
+}
+
+model User {
+  id                                  Int         @id @default(autoincrement())
+  username                            String      @unique
+  password_hash                       String
+  assigned_bank_id                    Int?        // Deprecated: use UserBank join table
+  store_id                            Int?        // Direct 1:1 store assignment
+  created_at                          DateTime    @default(now())
+  role                                Role        @default(USER)
+  token_revoked_at                    DateTime?
+  Bank_Bank_assigned_to_user_idToUser Bank[]      @relation("Bank_assigned_to_user_idToUser")
+  Bank_User_assigned_bank_idToBank    Bank?       @relation("User_assigned_bank_idToBank", fields: [assigned_bank_id], references: [id])
+  Store                               Store?      @relation(fields: [store_id], references: [id])
+  storeUsers                          StoreUser[] // Legacy many-to-many (kept for backward compatibility)
+  userBanks                           UserBank[]
+  userVendors                         UserVendor[]
+}
+
+model UserBank {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  bank_id    Int
+  created_at DateTime @default(now())
+
+  User User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  Bank Bank @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, bank_id])
+  @@index([user_id])
+  @@index([bank_id])
+}
+
+model Vendor {
+  id             Int          @id @default(autoincrement())
+  vendor_name    String
+  vendor_type    VendorType
+  description    String?
+  contact_person String?
+  email          String?
+  phone          String?
+  address        String?
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+  VendorBank     VendorBank[]
+  Check          Check[]
+  userVendors    UserVendor[]
+}
+
+model UserVendor {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  vendor_id  Int
+  created_at DateTime @default(now())
+
+  User   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  Vendor Vendor @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, vendor_id])
+  @@index([user_id])
+  @@index([vendor_id])
+}
+
+model VendorBank {
+  id         Int      @id @default(autoincrement())
+  vendor_id  Int
+  bank_id    Int
+  created_at DateTime @default(now())
+  Bank       Bank     @relation(fields: [bank_id], references: [id], onDelete: Cascade)
+  Vendor     Vendor   @relation(fields: [vendor_id], references: [id], onDelete: Cascade)
+
+  @@unique([vendor_id, bank_id])
+}
+
+model Corporation {
+  id         Int      @id @default(autoincrement())
+  name       String
+  owner      String?
+  ein        String?
+  created_at DateTime @default(now())
+  Bank       Bank[]
+}
+
+model Store {
+  id          Int                  @id @default(autoincrement())
+  code        String               @unique  // e.g., "126" for QT 126
+  name        String                        // e.g., "QT 126"
+  address     String
+  phone       String?
+  status      String               @default("active")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  banks       Bank[]               // Legacy 1:many (kept for compatibility)
+  checks      Check[]              // Checks belong to stores
+  storeUsers  StoreUser[]          // Users assigned to this store
+  users       User[]               // Direct 1:1 store assignment
+  sequence    StoreCheckSequence?  // Check number sequence
+  storeBanks  StoreBank[]          // Many-to-many bank assignment
+}
+
+model StoreBank {
+  id         Int      @id @default(autoincrement())
+  storeId    Int
+  bankId     Int
+  createdAt  DateTime @default(now())
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  bank       Bank     @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, bankId])
+  @@index([storeId])
+  @@index([bankId])
+}
+
+model StoreUser {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  storeId   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId])
+}
+
+model StoreCheckSequence {
+  storeId    Int   @id
+  nextNumber Int   @default(1)
+  store      Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OFFICE_ADMIN
+  BACK_OFFICE
+  STORE_USER
+  USER
+}
+
+enum VendorType {
+  MERCHANDISE
+  EXPENSE
+  EMPLOYEE
+}

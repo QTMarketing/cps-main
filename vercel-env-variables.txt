@@ -1,0 +1,124 @@
+# =============================================================================
+# VERCEL ENVIRONMENT VARIABLES
+# Copy these variables to your Vercel project settings
+# =============================================================================
+
+# PROJECT URL: https://vercel.com/[your-project]/settings/environment-variables
+# Click "Add New" for each variable below
+# =============================================================================
+
+# =============================================================================
+# DATABASE CONFIGURATION - AWS LIGHTSAIL PostgreSQL
+# =============================================================================
+
+DATABASE_URL=postgresql://dbmasteruser:Quick1501@ls-5ae45a59859603f9d2dab21bd2b6a8e87ad53553.cydqqaysw1my.us-east-1.rds.amazonaws.com:5432/cps?sslmode=require
+
+DIRECT_URL=postgresql://dbmasteruser:Quick1501@ls-5ae45a59859603f9d2dab21bd2b6a8e87ad53553.cydqqaysw1my.us-east-1.rds.amazonaws.com:5432/cps?sslmode=require
+
+# =============================================================================
+# SUPABASE CONFIGURATION (NOT USED - Using AWS Lightsail PostgreSQL)
+# =============================================================================
+
+# These can be left empty since we're not using Supabase
+NEXT_PUBLIC_SUPABASE_URL=""
+
+NEXT_PUBLIC_SUPABASE_ANON_KEY=""
+
+SUPABASE_SERVICE_ROLE_KEY=""
+
+SUPABASE_PROJECT_ID=""
+
+SUPABASE_PROJECT_NAME=""
+
+# =============================================================================
+# SECURITY SECRETS
+# =============================================================================
+
+JWT_SECRET=MIOhkd0nDenWOtel8a0qSYQ92+OXWbzIK8BDtRT8bi6mTePqoqxilo6szYkJW295qTx1ZK8iwwwZ1SYBYyUCWQ==
+
+SESSION_SECRET=Jj0q3N4uEMYhKRNQHS7dnqDpglBet4l7Mm+w0rWl2KPZ7ITl+dj7vJmUB99I3q9a6n2vi4BitACLZIfKw4kvyg==
+
+ENCRYPTION_KEY=6337ed1a7f4798bb487b904e2753217ab4b0d7b5f5a2a13fb829779ded082120
+
+# =============================================================================
+# APPLICATION CONFIGURATION
+# =============================================================================
+
+NODE_ENV=production
+
+PORT=3000
+
+# IMPORTANT: Updated with your actual Vercel domain
+NEXT_PUBLIC_APP_URL=https://cps-ten-ebon.vercel.app
+
+# =============================================================================
+# FILE UPLOAD SETTINGS
+# =============================================================================
+
+MAX_FILE_SIZE=10485760
+
+ALLOWED_FILE_TYPES=pdf,jpg,jpeg,png,doc,docx
+
+UPLOAD_DIR=./uploads
+
+# =============================================================================
+# SECURITY SETTINGS
+# =============================================================================
+
+FORCE_HTTPS=true
+
+# =============================================================================
+# RATE LIMITING
+# =============================================================================
+
+RATE_LIMIT_WINDOW_MS=900000
+
+RATE_LIMIT_MAX_REQUESTS=100
+
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+
+AUTH_RATE_LIMIT_MAX_ATTEMPTS=5
+
+# =============================================================================
+# AUDIT LOGGING
+# =============================================================================
+
+AUDIT_LOGGING_ENABLED=true
+
+AUDIT_LOG_RETENTION_DAYS=365
+
+REAUTH_SESSION_DURATION_MINUTES=5
+
+LARGE_PAYMENT_THRESHOLD=10000
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+
+LOG_LEVEL=info
+
+LOG_FILE_PATH=./logs/app.log
+
+CONSOLE_LOGGING=true
+
+# =============================================================================
+# DEVELOPMENT FLAGS (Set to false for production)
+# =============================================================================
+
+ENABLE_PRISMA_STUDIO=false
+
+ENABLE_API_DOCS=false
+
+DEBUG_MODE=false
+
+# =============================================================================
+# INSTRUCTIONS:
+# =============================================================================
+# 1. Go to: https://vercel.com/[your-project]/settings/environment-variables
+# 2. Click "Add New" for each variable above
+# 3. Copy the variable name (left side of =) and value (right side of =)
+# 4. For Production, Preview, and Development environments
+# 5. Vercel will automatically redeploy
+# 6. Wait 1-2 minutes, then test your app
+# =============================================================================
+
