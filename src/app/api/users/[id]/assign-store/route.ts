@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireMinimumRole, Role } from '@/lib/rbac';
+import { requireRole, Role } from '@/lib/rbac';
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require ADMIN role or higher (same as POST /api/users)
-    const roleCheck = requireMinimumRole(Role.ADMIN);
+    // Require SUPER_ADMIN role
+    const roleCheck = requireRole(Role.SUPER_ADMIN);
     const response = await roleCheck(req);
     
     if (response) {
@@ -109,8 +109,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Require ADMIN role or higher
-    const roleCheck = requireMinimumRole(Role.ADMIN);
+    // Require SUPER_ADMIN role
+    const roleCheck = requireRole(Role.SUPER_ADMIN);
     const response = await roleCheck(req);
     
     if (response) {

@@ -141,8 +141,8 @@ export async function GET(req: NextRequest) {
 // =============================================================================
 
 export async function POST(req: NextRequest) {
-  // Require ADMIN role or higher to create users
-  const roleCheck = requireMinimumRole(Role.ADMIN);
+  // Require SUPER_ADMIN role to create users
+  const roleCheck = requireRole(Role.SUPER_ADMIN);
   const response = await roleCheck(req);
   
   // Debug logging
