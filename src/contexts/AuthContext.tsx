@@ -100,7 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const text = await response.text();
+        const data = text ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
+        if (!data?.token) {
+          console.error("Login failed: expected JSON token, got:", text);
+          return { success: false };
+        }
         setToken(data.token);
         
         // Set cookie client-side as backup (server also sets it)
@@ -110,8 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await fetchUser();
         return { success: true, role: data?.user?.role };
       } else {
-        const errorData = await response.json();
-        console.error("Login failed:", errorData.error);
+        const text = await response.text();
+        const errorData = text ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
+        console.error("Login failed:", errorData ?? text);
         return { success: false };
       }
     } catch (error) {

@@ -441,8 +441,8 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // ✅ STORE_USER BANK SCOPING: can only use explicitly assigned banks
-    if (ctx.role === 'STORE_USER') {
+    // ✅ USER / STORE_USER BANK SCOPING: can only use explicitly assigned banks
+    if (ctx.role === 'STORE_USER' || ctx.role === 'USER') {
       const [assignedViaJoin, userRow] = await Promise.all([
         prisma.userBank.findFirst({
           where: { user_id: ctx.userId, bank_id: bankIdNum },
@@ -459,7 +459,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Forbidden',
-            message: 'STORE_USER can only create checks with assigned bank(s)',
+            message: `${ctx.role} can only create checks with assigned bank(s)`,
           },
           { status: 403 }
         );

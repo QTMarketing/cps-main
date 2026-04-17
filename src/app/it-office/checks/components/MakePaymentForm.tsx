@@ -56,11 +56,11 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
   const [error, setError] = useState<string | null>(null);
 
   const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isOfficeAdmin = userRole === 'OFFICE_ADMIN';
   const isStoreScopedRole = userRole === 'STORE_USER' || userRole === 'USER';
   const isAdminLikeRole =
     userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'OFFICE_ADMIN';
-  const shouldLockBankSelection =
-    isStoreScopedRole || (isAdminLikeRole && !!storeId);
+  const shouldLockBankSelection = isAdminLikeRole && !!storeId;
 
   // Auto-populate storeId for non-SUPER_ADMIN users from their assigned store
   useEffect(() => {
@@ -72,9 +72,9 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
     }
   }, [user, isSuperAdmin, storeId, onStoreChange]);
 
-  // load stores for SUPER_ADMIN on mount
+  // load stores for SUPER_ADMIN / OFFICE_ADMIN on mount
   useEffect(() => {
-    if (isSuperAdmin) {
+    if (isSuperAdmin || isOfficeAdmin) {
       (async () => {
         setLoadingOptions(true);
         try {
@@ -93,7 +93,7 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
         }
       })();
     }
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, isOfficeAdmin]);
 
   // load banks when storeId changes (or initially)
   useEffect(() => {
@@ -107,16 +107,14 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
         setBanks(b);
         console.log('[MakePaymentForm] Loaded banks for store:', storeId || 'all', b.length, 'found');
 
-        // Auto-pick bank whenever selection is locked by role/store policy.
-        if (shouldLockBankSelection) {
-          if (b.length > 0) {
-            const preferredId = b[0].id;
-            setBankId(preferredId);
-            onBankChange?.(preferredId);
-          } else {
-            setBankId("");
-            onBankChange?.("");
-          }
+        // Auto-pick only when there is exactly one option (or no current selection).
+        if (b.length === 1 && (!bankId || bankId !== b[0].id)) {
+          const preferredId = b[0].id;
+          setBankId(preferredId);
+          onBankChange?.(preferredId);
+        } else if (b.length === 0) {
+          setBankId("");
+          onBankChange?.("");
         }
       } catch (error) {
         console.error("Failed to load banks:", error);
@@ -125,7 +123,7 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
         setLoadingOptions(false);
       }
     })();
-  }, [storeId, shouldLockBankSelection, bankId, onBankChange]);
+  }, [storeId, bankId, onBankChange]);
 
   // Reload vendors when selected bank changes
   useEffect(() => {
@@ -355,8 +353,8 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
           </div>
         )}
 
-        {/* Store dropdown (SUPER_ADMIN only) */}
-        {isSuperAdmin && (
+        {/* Store dropdown (SUPER_ADMIN always; OFFICE_ADMIN if multiple stores) */}
+        {(isSuperAdmin || (isOfficeAdmin && stores.length > 1)) && (
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Store *</label>
             <Select 
@@ -471,11 +469,6 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
             </Select>
             {banks.length === 0 && !loadingOptions && (
               <p className="text-xs text-muted-foreground">Please add banks in the Add Bank section first.</p>
-            )}
-            {shouldLockBankSelection && banks.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Bank is auto-assigned from the selected store and locked.
-              </p>
             )}
           </div>
         )}

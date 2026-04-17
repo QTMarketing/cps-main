@@ -4,6 +4,8 @@ import { Role } from "@/lib/rbac";
 import { signJwt } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
+export const runtime = "nodejs";
+
 // ---------------------------------------------------------------------------
 // Simple in-memory rate limiter (per server process)
 // Limits: 10 login attempts per IP per 15-minute window

@@ -20,7 +20,7 @@ const PUBLIC_PREFIXES = ["/_next", "/api/auth", "/api/public", "/public", "/uplo
 
 const ROLE_ALLOWLIST: Record<Role, string[]> = {
   USER: ["/write-checks"],
-  STORE_USER: ["/write-checks"],
+  STORE_USER: ["/write-checks", "/reports"],
   BACK_OFFICE: ["/reports"],
   // NOTE: ADMIN is treated like OFFICE_ADMIN for now (backward compatible).
   ADMIN: [

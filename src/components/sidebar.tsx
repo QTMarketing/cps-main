@@ -15,7 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { name: "Write Checks", href: "/write-checks", icon: FileText, roles: ["USER", "STORE_USER", "ADMIN", "OFFICE_ADMIN", "SUPER_ADMIN"] },
-  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["ADMIN", "OFFICE_ADMIN", "SUPER_ADMIN", "BACK_OFFICE"] },
+  { name: "Reports", href: "/reports", icon: BarChart3, roles: ["STORE_USER", "ADMIN", "OFFICE_ADMIN", "SUPER_ADMIN", "BACK_OFFICE"] },
   { name: "Add Vendor", href: "/add-vendor", icon: UserPlus, roles: ["SUPER_ADMIN"] },
   { name: "Add User", href: "/add-user", icon: PlusCircle, roles: ["SUPER_ADMIN"] },
   { name: "Add Bank", href: "/banks/add", icon: Building2, roles: ["SUPER_ADMIN"] },

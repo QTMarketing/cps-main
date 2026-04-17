@@ -90,7 +90,50 @@ export async function GET(req: NextRequest) {
         orderBy: { code: 'asc' },
       });
     }
-    // USER sees only their assigned store (1:1 model)
+    // OFFICE_ADMIN can be assigned multiple stores via StoreUser join table
+    else if (user.role === 'OFFICE_ADMIN') {
+      const assigned = await prisma.storeUser.findMany({
+        where: { userId: user.id },
+        select: {
+          store: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              address: true,
+              phone: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      const assignedStores = assigned.map((su) => su.store).filter(Boolean);
+
+      // If there are explicit StoreUser assignments, use them; otherwise fall back to 1:1 store_id
+      if (assignedStores.length > 0) {
+        stores = assignedStores.sort((a, b) => String(a.code).localeCompare(String(b.code)));
+      } else {
+        const userWithStore = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: {
+            store_id: true,
+            Store: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                address: true,
+                phone: true,
+                status: true,
+              },
+            },
+          },
+        });
+        stores = userWithStore?.Store ? [userWithStore.Store] : [];
+      }
+    }
+    // USER / STORE_USER sees only their assigned store (1:1 model)
     else {
       // Get user's assigned store
       const userWithStore = await prisma.user.findUnique({

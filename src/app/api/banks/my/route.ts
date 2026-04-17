@@ -7,7 +7,8 @@ export async function GET(req: NextRequest) {
     const ctx = await requireAuth(req);
 
     const isSuperAdmin = ctx.role === 'SUPER_ADMIN';
-    const isStoreUser = ctx.role === 'STORE_USER';
+    const isOfficeAdmin = ctx.role === 'OFFICE_ADMIN' || ctx.role === 'ADMIN';
+    const isStoreUser = ctx.role === 'STORE_USER' || ctx.role === 'USER';
     const { searchParams } = new URL(req.url);
     const storeIdParam = searchParams.get('storeId');
 
@@ -16,7 +17,8 @@ export async function GET(req: NextRequest) {
     // Everyone else → only banks linked via UserBank join table or StoreBank for their assigned store
     let whereClause: any = {};
 
-    if (isSuperAdmin) {
+    if (isSuperAdmin || isOfficeAdmin) {
+      // SUPER_ADMIN / OFFICE_ADMIN / ADMIN → all banks, optionally filtered by storeId query param
       if (storeIdParam) {
         const storeIdInt = parseInt(storeIdParam, 10);
         if (!isNaN(storeIdInt)) {
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
         }
       }
     } else if (isStoreUser) {
-      // STORE_USER: only banks explicitly assigned to the user.
+      // USER / STORE_USER: only banks explicitly assigned to the user.
       // Do not expose all store banks for this role.
       const user = await prisma.user.findUnique({
         where: { id: ctx.userId },

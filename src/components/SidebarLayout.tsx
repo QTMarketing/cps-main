@@ -60,7 +60,7 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
                       Write Checks
                     </a>
 
-                    {user?.role === "ADMIN" || user?.role === "OFFICE_ADMIN" || user?.role === "SUPER_ADMIN" ? (
+                    {user?.role === "STORE_USER" || user?.role === "ADMIN" || user?.role === "OFFICE_ADMIN" || user?.role === "SUPER_ADMIN" ? (
                       <>
                         <a
                           href="/reports"
