@@ -14,7 +14,8 @@ export async function GET(req: NextRequest) {
 
     // Build the where clause:
     // SUPER_ADMIN → all banks (optionally filtered by storeId query param)
-    // Everyone else → only banks linked via UserBank join table or StoreBank for their assigned store
+    // USER / STORE_USER → banks linked to their assigned store (StoreBank + legacy bank.store_id)
+    // Other roles → banks linked via UserBank join table or StoreBank for their assigned store
     let whereClause: any = {};
 
     if (isSuperAdmin || isOfficeAdmin) {
@@ -37,29 +38,29 @@ export async function GET(req: NextRequest) {
         }
       }
     } else if (isStoreUser) {
-      // USER / STORE_USER: only banks explicitly assigned to the user.
-      // Do not expose all store banks for this role.
-      const user = await prisma.user.findUnique({
-        where: { id: ctx.userId },
-        select: { assigned_bank_id: true },
-      });
-
-      const assignedViaJoin = await prisma.userBank.findMany({
-        where: { user_id: ctx.userId },
-        select: { bank_id: true },
-      });
-
-      const allowedBankIds = new Set<number>(assignedViaJoin.map((r) => r.bank_id));
-      if (user?.assigned_bank_id) {
-        allowedBankIds.add(user.assigned_bank_id);
-      }
-
-      if (allowedBankIds.size === 0) {
+      // USER / STORE_USER: all banks assigned to the user's store (not per-user bank grants).
+      if (ctx.storeId === null) {
         return NextResponse.json({ success: true, banks: [] });
       }
 
+      const userStoreId = ctx.storeId;
+      const storeIdFromQuery = storeIdParam ? parseInt(storeIdParam, 10) : NaN;
+
+      // If a storeId query param is provided, it must match the user's assigned store.
+      if (storeIdParam && (!Number.isFinite(storeIdFromQuery) || storeIdFromQuery !== userStoreId)) {
+        return NextResponse.json(
+          { error: 'Forbidden', message: 'You can only load banks for your assigned store' },
+          { status: 403 }
+        );
+      }
+
+      const storeBankIds: any[] = await prisma.$queryRaw`
+        SELECT "bankId" FROM "StoreBank" WHERE "storeId" = ${userStoreId}
+      `;
+      const bankIdsFromStore = storeBankIds.map((a) => a.bankId);
+
       whereClause = {
-        id: { in: Array.from(allowedBankIds) },
+        OR: [{ store_id: userStoreId }, { id: { in: bankIdsFromStore } }],
       };
     } else {
       // For non-super admins:

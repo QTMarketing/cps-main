@@ -100,14 +100,21 @@ export async function GET(request: NextRequest) {
     let allowedBankIds: number[] | null = null;
     
     if (!isAdminLike) {
-      // For non-admin users, get banks via the StoreBank many-to-many join table
-      // (The legacy bank.store_id 1:many field is NOT used here)
+      // For non-admin users, get banks via StoreBank join table + legacy bank.store_id
       if (ctx.storeId) {
         const storeBankRows = await prisma.storeBank.findMany({
           where: { storeId: ctx.storeId },
           select: { bankId: true },
         });
-        allowedBankIds = storeBankRows.map((sb) => sb.bankId);
+        const legacyBankRows = await prisma.bank.findMany({
+          where: { store_id: ctx.storeId },
+          select: { id: true },
+        });
+
+        const allowed = new Set<number>();
+        for (const sb of storeBankRows) allowed.add(sb.bankId);
+        for (const b of legacyBankRows) allowed.add(b.id);
+        allowedBankIds = Array.from(allowed);
       } else {
         // User has no store assigned - return empty result
         return NextResponse.json({ rows: [], total: 0, checks: [] });
@@ -434,36 +441,15 @@ export async function POST(request: NextRequest) {
       where: { storeId_bankId: { storeId: storeIdInt, bankId: bankIdNum } },
       select: { id: true },
     });
-    if (!storeOwnsBank) {
+    const legacyStoreOwnsBank = await prisma.bank.findFirst({
+      where: { id: bankIdNum, store_id: storeIdInt },
+      select: { id: true },
+    });
+    if (!storeOwnsBank && !legacyStoreOwnsBank) {
       return NextResponse.json({
         error: 'Forbidden',
         message: 'The selected bank is not assigned to this store',
       }, { status: 403 });
-    }
-
-    // ✅ USER / STORE_USER BANK SCOPING: can only use explicitly assigned banks
-    if (ctx.role === 'STORE_USER' || ctx.role === 'USER') {
-      const [assignedViaJoin, userRow] = await Promise.all([
-        prisma.userBank.findFirst({
-          where: { user_id: ctx.userId, bank_id: bankIdNum },
-          select: { id: true },
-        }),
-        prisma.user.findUnique({
-          where: { id: ctx.userId },
-          select: { assigned_bank_id: true },
-        }),
-      ]);
-
-      const hasDirectAssignedBank = userRow?.assigned_bank_id === bankIdNum;
-      if (!assignedViaJoin && !hasDirectAssignedBank) {
-        return NextResponse.json(
-          {
-            error: 'Forbidden',
-            message: `${ctx.role} can only create checks with assigned bank(s)`,
-          },
-          { status: 403 }
-        );
-      }
     }
 
     // Convert amount to cents to avoid floating-point rounding errors
