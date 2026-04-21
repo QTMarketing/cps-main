@@ -9,6 +9,10 @@ interface User {
   email?: string | null;
   storeId?: number | null;
   createdAt?: string;
+  /** DB override (cents); null = use org default for store users. */
+  maxChequeAmountCents?: number | null;
+  /** Effective per-check cap in cents; null = no limit. */
+  chequeLimitCents?: number | null;
   store?: {
     id: number;
     code?: string;

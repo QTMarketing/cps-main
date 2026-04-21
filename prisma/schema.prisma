@@ -97,6 +97,8 @@ model User {
   store_id                            Int?        // Direct 1:1 store assignment
   created_at                          DateTime    @default(now())
   role                                Role        @default(USER)
+  /// Per-check max for USER / STORE_USER (cents). Null = use default ($3,999). Set by Super Admin.
+  max_cheque_amount_cents             Int?
   token_revoked_at                    DateTime?
   Bank_Bank_assigned_to_user_idToUser Bank[]      @relation("Bank_assigned_to_user_idToUser")
   Bank_User_assigned_bank_idToBank    Bank?       @relation("User_assigned_bank_idToBank", fields: [assigned_bank_id], references: [id])

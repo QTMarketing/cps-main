@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { jsonGuardError, requireAuth } from '@/lib/guards';
 import { dollarsToCents, centsToDecimal } from '@/lib/money';
+import { getEffectiveChequeLimitCents } from '@/lib/chequeLimits';
 
 export const runtime = 'nodejs';
 
@@ -467,20 +468,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Amount must be greater than zero' }, { status: 400 });
     }
 
-    // Role-based max amount enforcement (CHECK payments only)
+    // Per-check amount limits (CHECK payments only)
     if (isCheckPayment) {
-      const ROLE_LIMITS: Record<string, number | null> = {
-        USER: 200_000,   // $2,000.00
-        ADMIN: 500_000,  // $5,000.00
-        SUPER_ADMIN: null,
-      };
-      const maxCents = ROLE_LIMITS[ctx.role] ?? null;
+      let maxFromDb: number | null | undefined;
+      if (ctx.role === 'USER' || ctx.role === 'STORE_USER') {
+        const u = await prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { max_cheque_amount_cents: true },
+        });
+        maxFromDb = u?.max_cheque_amount_cents ?? null;
+      }
+
+      const maxCents = getEffectiveChequeLimitCents(ctx.role, maxFromDb);
       if (maxCents !== null && amountCents > maxCents) {
         const maxDollars = (maxCents / 100).toFixed(2);
         const attemptedDollars = (amountCents / 100).toFixed(2);
-        return NextResponse.json({
-          error: `Amount exceeds limit for your role (${ctx.role}). Maximum allowed: $${maxDollars}. Attempted: $${attemptedDollars}.`,
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: `Amount exceeds your per-check limit. Maximum allowed: $${maxDollars}. Attempted: $${attemptedDollars}.`,
+          },
+          { status: 400 }
+        );
       }
     }
 

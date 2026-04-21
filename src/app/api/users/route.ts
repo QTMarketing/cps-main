@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
           role: true,
           assigned_bank_id: true,
           store_id: true,
+          max_cheque_amount_cents: true,
           Store: {
             select: {
               id: true,
@@ -109,6 +110,7 @@ export async function GET(req: NextRequest) {
       role: user.role,
       storeId: user.store_id ? String(user.store_id) : "",
       storeName: user.Store?.name || null,
+      maxChequeAmountCents: user.max_cheque_amount_cents,
       store: user.Store ? {
         name: user.Store.name,
       } : undefined,

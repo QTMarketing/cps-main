@@ -193,13 +193,12 @@ export default function MakePaymentForm({ onCreated, onBankChange, onStoreChange
     if (!amount.trim() || isNaN(Number(amount)) || Number(amount) <= 0) errs.push("Amount must be a number > 0");
     // 2 decimal places
     if (!/^\d+(\.\d{1,2})?$/.test(amount)) errs.push("Amount must have at most 2 decimals");
-    // Role-based amount limit for CHECK
-    if (paymentMethod === 'CHECK') {
-      const amtNum = Number(amount);
-      if (userRole === 'USER' && amtNum > 2000) {
-        errs.push("Amount exceeds your limit of $2,000.00 per check.");
-      } else if (userRole === 'ADMIN' && amtNum > 5000) {
-        errs.push("Amount exceeds your limit of $5,000.00 per check.");
+    // Per-check amount limit (aligned with /api/checks and session chequeLimitCents)
+    if (paymentMethod === 'CHECK' && user?.chequeLimitCents != null) {
+      const amtCents = Math.round(Number(amount) * 100);
+      if (amtCents > user.chequeLimitCents) {
+        const maxD = (user.chequeLimitCents / 100).toFixed(2);
+        errs.push(`Amount exceeds your limit of $${maxD} per check.`);
       }
     }
     if (!file) errs.push("Invoice file is required");

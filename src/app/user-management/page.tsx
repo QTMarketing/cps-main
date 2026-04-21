@@ -34,6 +34,7 @@ import {
 import RoleSwitcher from "@/components/RoleSwitcher";
 import { BankAssignmentDialog } from "@/components/BankAssignmentDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS } from "@/lib/chequeLimits";
 
 // =============================================================================
 // VALIDATION SCHEMAS
@@ -52,6 +53,8 @@ const updateUserSchema = z.object({
   email: z.string().email("Invalid email address").optional(),
   role: z.enum(["SUPER_ADMIN", "OFFICE_ADMIN", "ADMIN", "BACK_OFFICE", "STORE_USER", "USER"]).optional(),
   storeId: z.string().min(1, "Store is required").optional(),
+  /** Dollars as text; empty = org default ($3,999) for store users */
+  maxChequeAmountDollars: z.string().optional(),
 });
 
 const updatePasswordSchema = z.object({
@@ -73,6 +76,8 @@ interface User {
   role: "SUPER_ADMIN" | "OFFICE_ADMIN" | "ADMIN" | "BACK_OFFICE" | "STORE_USER" | "USER";
   storeId: string;
   storeName?: string | null;
+  /** Super-admin override in cents; null/undefined = default $3,999 for store users */
+  maxChequeAmountCents?: number | null;
   createdAt: string;
   updatedAt: string;
   store?: {
@@ -90,6 +95,17 @@ interface Store {
   phone: string;
 }
 
+function storeUserChequeLimitLabel(u: User): string {
+  if (u.role !== "USER" && u.role !== "STORE_USER") return "—";
+  const cents = u.maxChequeAmountCents ?? DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS;
+  const isDefault = u.maxChequeAmountCents == null;
+  const dollars = (cents / 100).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return isDefault ? `$${dollars} (default)` : `$${dollars}`;
+}
+
 type CreateUserFormData = z.infer<typeof createUserSchema>;
 type UpdateUserFormData = z.infer<typeof updateUserSchema>;
 type UpdatePasswordFormData = z.infer<typeof updatePasswordSchema>;
@@ -102,6 +118,7 @@ export default function UserManagementPage() {
   const { user: currentUser } = useAuth();
   const canManageBanks =
     currentUser?.role === "SUPER_ADMIN";
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
 
   const [users, setUsers] = useState<User[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
@@ -339,13 +356,37 @@ export default function UserManagementPage() {
         return;
       }
 
+      const payload: Record<string, unknown> = {
+        username: data.username,
+        email: data.email,
+        role: data.role,
+        storeId: data.storeId,
+      };
+
+      if (
+        isSuperAdmin &&
+        (selectedUser.role === "USER" || selectedUser.role === "STORE_USER")
+      ) {
+        const raw = (data.maxChequeAmountDollars ?? "").trim();
+        if (raw === "") {
+          payload.maxChequeAmountCents = null;
+        } else {
+          const n = parseFloat(raw);
+          if (!Number.isFinite(n) || n <= 0) {
+            showAlert("error", "Max cheque amount must be a positive number.");
+            return;
+          }
+          payload.maxChequeAmountCents = Math.round(n * 100);
+        }
+      }
+
       const response = await fetch(`/api/users/${selectedUser.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
@@ -454,6 +495,10 @@ export default function UserManagementPage() {
       email: user.email,
       role: user.role,
       storeId: user.storeId,
+      maxChequeAmountDollars:
+        user.maxChequeAmountCents != null
+          ? String(user.maxChequeAmountCents / 100)
+          : "",
     });
     setIsEditDialogOpen(true);
   };
@@ -717,6 +762,9 @@ export default function UserManagementPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Store</TableHead>
+                    {isSuperAdmin && (
+                      <TableHead>Max cheque</TableHead>
+                    )}
                     <TableHead>Created</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -757,6 +805,11 @@ export default function UserManagementPage() {
                           <span>{user.store?.name || "Unknown"}</span>
                         </div>
                       </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {storeUserChequeLimitLabel(user)}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -858,7 +911,10 @@ export default function UserManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="SUPER_ADMIN">Super Admin</SelectItem>
+                  <SelectItem value="OFFICE_ADMIN">Office Admin</SelectItem>
                   <SelectItem value="USER">User</SelectItem>
+                  <SelectItem value="STORE_USER">Store User</SelectItem>
+                  <SelectItem value="BACK_OFFICE">Back Office</SelectItem>
                   <SelectItem value="ADMIN">Admin</SelectItem>
                 </SelectContent>
               </Select>
@@ -889,6 +945,26 @@ export default function UserManagementPage() {
                 </p>
               )}
             </div>
+
+            {isSuperAdmin &&
+              selectedUser &&
+              (selectedUser.role === "USER" || selectedUser.role === "STORE_USER") && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-max-cheque">Max cheque amount ($)</Label>
+                  <Input
+                    id="edit-max-cheque"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder={`Default ${DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS / 100}`}
+                    {...updateForm.register("maxChequeAmountDollars")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Maximum amount per single cheque. Leave empty for the default ($
+                    {(DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS / 100).toFixed(0)}).
+                  </p>
+                </div>
+              )}
 
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>

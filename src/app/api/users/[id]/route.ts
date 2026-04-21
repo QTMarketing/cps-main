@@ -8,8 +8,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireMinimumRole, Role } from '@/lib/rbac';
+import { verifyJwt } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+
+function extractBearerToken(req: NextRequest): string | null {
+  const authHeader = req.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  const cookieHeader = req.headers.get('cookie') || '';
+  const match = cookieHeader.split('; ').find((c) => c.startsWith('auth-token='));
+  return match ? match.split('=')[1] || null : null;
+}
 
 // =============================================================================
 // VALIDATION SCHEMAS
@@ -18,12 +29,21 @@ import { z } from 'zod';
 const updateUserSchema = z.object({
   username: z.string().min(3).max(50).optional(),
   password: z.string().min(8).optional(),
-  role: z.enum(['SUPER_ADMIN', 'ADMIN', 'USER']).optional(),
+  role: z.enum([
+    'SUPER_ADMIN',
+    'ADMIN',
+    'OFFICE_ADMIN',
+    'BACK_OFFICE',
+    'STORE_USER',
+    'USER',
+  ]).optional(),
   storeId: z.union([z.string(), z.number()]).transform(val => {
     const num = typeof val === 'string' ? parseInt(val, 10) : val;
     if (!Number.isFinite(num)) throw new Error('Invalid storeId');
     return num;
   }).optional(),
+  /** Per-check cap in cents for USER / STORE_USER; null clears override (Super Admin only) */
+  maxChequeAmountCents: z.union([z.number().int().min(1).max(999_999_999_999), z.null()]).optional(),
 });
 
 const updatePasswordSchema = z.object({
@@ -60,6 +80,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         username: true,
         role: true,
         created_at: true,
+        store_id: true,
+        max_cheque_amount_cents: true,
         assigned_bank_id: true,
         Bank_Bank_assigned_to_user_idToUser: {
           select: {
@@ -86,6 +108,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
         username: user.username,
         role: user.role,
         createdAt: user.created_at,
+        storeId: user.store_id,
+        maxChequeAmountCents: user.max_cheque_amount_cents,
         assignedBanks: user.Bank_Bank_assigned_to_user_idToUser,
       }
     });
@@ -228,6 +252,28 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
       updateData.password_hash = await bcrypt.hash(validatedData.password, 12);
     }
 
+    if (validatedData.maxChequeAmountCents !== undefined) {
+      const token = extractBearerToken(req);
+      if (!token) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const caller = await verifyJwt(token);
+      if (caller.role !== Role.SUPER_ADMIN) {
+        return NextResponse.json(
+          { error: 'Forbidden', message: 'Only Super Admin can set cheque amount limits' },
+          { status: 403 }
+        );
+      }
+      const effectiveRole = validatedData.role ?? existingUser.role;
+      if (effectiveRole !== 'USER' && effectiveRole !== 'STORE_USER') {
+        return NextResponse.json(
+          { error: 'Cheque limits apply only to User and Store User roles' },
+          { status: 400 }
+        );
+      }
+      updateData.max_cheque_amount_cents = validatedData.maxChequeAmountCents;
+    }
+
     console.log('[PUT /api/users/[id]] Update data for Prisma:', JSON.stringify(updateData, null, 2));
 
     // Update user
@@ -241,6 +287,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         created_at: true,
         assigned_bank_id: true,
         store_id: true,
+        max_cheque_amount_cents: true,
         Store: {
           select: {
             id: true,
@@ -261,6 +308,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         role: updatedUser.role,
         createdAt: updatedUser.created_at,
         storeId: updatedUser.store_id,
+        maxChequeAmountCents: updatedUser.max_cheque_amount_cents,
         store: updatedUser.Store,
       },
       message: 'User updated successfully',

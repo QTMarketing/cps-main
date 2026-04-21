@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, jsonGuardError } from "@/lib/guards";
+import { getEffectiveChequeLimitCents } from "@/lib/chequeLimits";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
         role: true,
         assigned_bank_id: true,
         store_id: true,
+        max_cheque_amount_cents: true,
         created_at: true,
         Store: {
           select: {
@@ -33,6 +35,11 @@ export async function GET(req: NextRequest) {
       throw { status: 404, message: "User not found" };
     }
 
+    const chequeLimitCents = getEffectiveChequeLimitCents(
+      user.role,
+      user.max_cheque_amount_cents
+    );
+
     return NextResponse.json({
       success: true,
       user: {
@@ -45,6 +52,9 @@ export async function GET(req: NextRequest) {
           : null,
         createdAt: user.created_at,
         storeId: user.store_id, // Direct 1:1 store assignment
+        maxChequeAmountCents: user.max_cheque_amount_cents,
+        /** Effective per-check max in cents; null = no limit for this session user */
+        chequeLimitCents,
         store: user.Store ? {
           id: user.Store.id,
           code: user.Store.code,
