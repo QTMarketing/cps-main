@@ -34,6 +34,7 @@ import {
 import RoleSwitcher from "@/components/RoleSwitcher";
 import { BankAssignmentDialog } from "@/components/BankAssignmentDialog";
 import { VendorAssignmentDialog } from "@/components/VendorAssignmentDialog";
+import { BulkVendorAssignmentDialog } from "@/components/BulkVendorAssignmentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS } from "@/lib/chequeLimits";
 
@@ -132,6 +133,7 @@ export default function UserManagementPage() {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
+  const [isBulkVendorDialogOpen, setIsBulkVendorDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -557,7 +559,17 @@ export default function UserManagementPage() {
             Manage users, roles, and permissions for your organization
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <div className="flex items-center gap-2">
+          {isSuperAdmin && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsBulkVendorDialogOpen(true)}
+            >
+              Assign Vendors (All Users)
+            </Button>
+          )}
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -696,7 +708,8 @@ export default function UserManagementPage() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {/* Alert */}
@@ -1006,6 +1019,16 @@ export default function UserManagementPage() {
           }}
         />
       )}
+
+      {/* Bulk Assign Vendors Dialog */}
+      <BulkVendorAssignmentDialog
+        open={isBulkVendorDialogOpen}
+        onClose={() => setIsBulkVendorDialogOpen(false)}
+        onSaved={(assignedLinks) => {
+          setIsBulkVendorDialogOpen(false);
+          showAlert("success", `Vendors assigned to all users. Links added: ${assignedLinks}`);
+        }}
+      />
 
       {/* Update Password Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
