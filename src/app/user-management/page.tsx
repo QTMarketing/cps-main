@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import RoleSwitcher from "@/components/RoleSwitcher";
 import { BankAssignmentDialog } from "@/components/BankAssignmentDialog";
+import { VendorAssignmentDialog } from "@/components/VendorAssignmentDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { DEFAULT_STORE_USER_CHEQUE_LIMIT_CENTS } from "@/lib/chequeLimits";
 
@@ -130,6 +131,7 @@ export default function UserManagementPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isBankDialogOpen, setIsBankDialogOpen] = useState(false);
+  const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
@@ -509,6 +511,11 @@ export default function UserManagementPage() {
     setIsPasswordDialogOpen(true);
   };
 
+  const openVendorDialog = (user: User) => {
+    setSelectedUser(user);
+    setIsVendorDialogOpen(true);
+  };
+
   // =============================================================================
   // FILTERING
   // =============================================================================
@@ -845,6 +852,16 @@ export default function UserManagementPage() {
                               <Building2 className="h-4 w-4" />
                             </Button>
                           )}
+                          {isSuperAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              title="Assign vendors"
+                              onClick={() => openVendorDialog(user)}
+                            >
+                              <Shield className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -975,6 +992,20 @@ export default function UserManagementPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Assign Vendors Dialog */}
+      {selectedUser && (
+        <VendorAssignmentDialog
+          user={{ id: selectedUser.id, username: selectedUser.username }}
+          open={isVendorDialogOpen}
+          callerRole={currentUser?.role || ""}
+          onClose={() => setIsVendorDialogOpen(false)}
+          onSaved={() => {
+            setIsVendorDialogOpen(false);
+            showAlert("success", "Vendors updated successfully");
+          }}
+        />
+      )}
 
       {/* Update Password Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>

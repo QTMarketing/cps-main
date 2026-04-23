@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
     const ctx = await requireAuth(req);
     const isSuperAdmin = ctx.role === 'SUPER_ADMIN';
     const isStoreUser = ctx.role === 'STORE_USER';
+    const isPlainUser = ctx.role === 'USER';
     const { searchParams } = new URL(req.url);
     const q = (searchParams.get("q") || "").trim();
 
@@ -127,10 +128,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden: bankId required" }, { status: 403 });
     }
 
+    // User/vendor assignments: store users (and USER) can only see vendors assigned to them
+    // when listing vendors for Write Checks.
+    const userVendorWhere =
+      (isStoreUser || isPlainUser) ? { userVendors: { some: { user_id: ctx.userId } } } : undefined;
+
     const where: any =
-      searchWhere && assignmentWhere
+      searchWhere && assignmentWhere && userVendorWhere
+        ? { AND: [searchWhere, assignmentWhere, userVendorWhere] }
+        : searchWhere && assignmentWhere
         ? { AND: [searchWhere, assignmentWhere] }
-        : searchWhere ?? assignmentWhere;
+        : assignmentWhere && userVendorWhere
+        ? { AND: [assignmentWhere, userVendorWhere] }
+        : searchWhere && userVendorWhere
+        ? { AND: [searchWhere, userVendorWhere] }
+        : searchWhere ?? assignmentWhere ?? userVendorWhere;
 
     const vendorDelegate = prisma.vendor as typeof prisma.vendor | undefined;
     if (!vendorDelegate) {
