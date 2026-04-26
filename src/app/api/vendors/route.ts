@@ -43,6 +43,14 @@ const vendorInclude = {
           bank_name: true,
           dba: true,
           account_type: true,
+          store_id: true,
+          Store: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
         },
       },
     },
@@ -66,6 +74,9 @@ function serializeVendor(vendor: any) {
       bankName: link.Bank?.bank_name ?? "",
       dbaName: link.Bank?.dba ?? "",
       accountType: link.Bank?.account_type ?? "",
+      storeId: link.Bank?.store_id != null ? String(link.Bank.store_id) : null,
+      storeName: link.Bank?.Store?.name ?? null,
+      storeCode: link.Bank?.Store?.code ?? null,
     })),
   };
 }
@@ -91,58 +102,77 @@ export async function GET(req: NextRequest) {
         }
       : undefined;
 
-    // Bank-scoped access: if bankId provided, filter by VendorBank join
-    // If no bankId, only SUPER_ADMIN may list all vendors
+    // Bank-scoped access: if bankId provided, we can filter vendors by VendorBank join.
+    // If no bankId, only SUPER_ADMIN may list all vendors (store users can still list
+    // by store/user assignment for fallback UX).
     const bankId = searchParams.get("bankId");
-    let assignmentWhere: any;
+    let bankVendorWhere: any;
+    let bankIdInt: number | null = null;
     if (bankId) {
-      const bankIdInt = parseInt(bankId, 10);
+      bankIdInt = parseInt(bankId, 10);
       if (isNaN(bankIdInt) || bankIdInt <= 0) {
         return NextResponse.json({ error: "Invalid bankId" }, { status: 400 });
       }
 
-      // STORE_USER can only query vendors for explicitly assigned banks
-      if (isStoreUser) {
-        const [assignedViaJoin, userRow] = await Promise.all([
-          prisma.userBank.findFirst({
-            where: { user_id: ctx.userId, bank_id: bankIdInt },
-            select: { id: true },
-          }),
-          prisma.user.findUnique({
-            where: { id: ctx.userId },
-            select: { assigned_bank_id: true },
-          }),
-        ]);
-
-        const hasDirectAssignedBank = userRow?.assigned_bank_id === bankIdInt;
-        if (!assignedViaJoin && !hasDirectAssignedBank) {
+      // STORE_USER / USER can only query vendors for banks that belong to their store.
+      if ((isStoreUser || isPlainUser) && ctx.storeId !== null) {
+        const storeId = ctx.storeId;
+        const storeOwnsBank = await prisma.storeBank.findUnique({
+          where: { storeId_bankId: { storeId, bankId: bankIdInt } },
+          select: { id: true },
+        });
+        const legacyStoreOwnsBank = await prisma.bank.findFirst({
+          where: { id: bankIdInt, store_id: storeId },
+          select: { id: true },
+        });
+        if (!storeOwnsBank && !legacyStoreOwnsBank) {
           return NextResponse.json(
-            { error: "Forbidden: bankId is not assigned to this user" },
+            { error: "Forbidden: bankId is not assigned to your store" },
             { status: 403 }
           );
         }
       }
 
-      assignmentWhere = { VendorBank: { some: { bank_id: bankIdInt } } };
-    } else if (!isSuperAdmin) {
+      bankVendorWhere = { VendorBank: { some: { bank_id: bankIdInt } } };
+    } else if (!isSuperAdmin && !(isStoreUser || isPlainUser)) {
       return NextResponse.json({ error: "Forbidden: bankId required" }, { status: 403 });
     }
 
-    // User/vendor assignments: store users (and USER) can only see vendors assigned to them
-    // when listing vendors for Write Checks.
+    // Option B: a store-scoped user can see a vendor if ANY of these are true:
+    // - vendor assigned to the selected bank
+    // - vendor assigned to the user
+    // - vendor assigned to the user's store (via any bank belonging to that store)
     const userVendorWhere =
       (isStoreUser || isPlainUser) ? { userVendors: { some: { user_id: ctx.userId } } } : undefined;
 
-    const where: any =
-      searchWhere && assignmentWhere && userVendorWhere
-        ? { AND: [searchWhere, assignmentWhere, userVendorWhere] }
-        : searchWhere && assignmentWhere
-        ? { AND: [searchWhere, assignmentWhere] }
-        : assignmentWhere && userVendorWhere
-        ? { AND: [assignmentWhere, userVendorWhere] }
-        : searchWhere && userVendorWhere
-        ? { AND: [searchWhere, userVendorWhere] }
-        : searchWhere ?? assignmentWhere ?? userVendorWhere;
+    const storeVendorWhere =
+      (isStoreUser || isPlainUser) && ctx.storeId !== null
+        ? {
+            VendorBank: {
+              some: {
+                Bank: {
+                  OR: [
+                    { store_id: ctx.storeId },
+                    { storeBanks: { some: { storeId: ctx.storeId } } },
+                  ],
+                },
+              },
+            },
+          }
+        : undefined;
+
+    const visibilityOr =
+      (isStoreUser || isPlainUser)
+        ? [bankVendorWhere, userVendorWhere, storeVendorWhere].filter(Boolean)
+        : [bankVendorWhere].filter(Boolean);
+
+    const where: any = searchWhere
+      ? visibilityOr.length > 0
+        ? { AND: [searchWhere, { OR: visibilityOr }] }
+        : searchWhere
+      : visibilityOr.length > 0
+      ? { OR: visibilityOr }
+      : undefined;
 
     const vendorDelegate = prisma.vendor as typeof prisma.vendor | undefined;
     if (!vendorDelegate) {

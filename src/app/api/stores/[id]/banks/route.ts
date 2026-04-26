@@ -3,8 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { Role } from '@/lib/rbac';
 import { requireRole } from '@/lib/rbac';
 
-const prismaUnsafe = prisma as any;
-
 // GET /api/stores/[id]/banks - Get assigned and unassigned banks for a store
 export async function GET(
   request: NextRequest,
@@ -27,12 +25,21 @@ export async function GET(
       orderBy: { bank_name: 'asc' },
     });
 
-    // Get assigned bank IDs using raw SQL since StoreBank might not be in the client yet
+    // Assigned banks = StoreBank join rows OR legacy Bank.store_id (Super Admin bank creation
+    // sets store_id but does not always insert StoreBank).
     const assignments: any[] = await prisma.$queryRaw`
       SELECT "bankId" FROM "StoreBank" WHERE "storeId" = ${storeId}
     `;
 
-    const assignedBankIds = new Set(assignments.map((a: any) => a.bankId));
+    const assignedBankIds = new Set<number>(
+      assignments.map((a: any) => Number(a.bankId)).filter((id: number) => Number.isFinite(id))
+    );
+
+    for (const b of allBanks) {
+      if (b.store_id === storeId) {
+        assignedBankIds.add(b.id);
+      }
+    }
 
     const assigned = allBanks
       .filter((b: any) => assignedBankIds.has(b.id))
@@ -77,23 +84,36 @@ export async function PUT(
     const { assignBankIds, unassignBankIds } = await request.json();
 
     await prisma.$transaction(async (tx: any) => {
-      // Unassign using raw SQL
+      // Unassign: remove StoreBank row and clear legacy Bank.store_id when it points at this store
       if (unassignBankIds && unassignBankIds.length > 0) {
         for (const bankId of unassignBankIds) {
           await tx.$executeRaw`
             DELETE FROM "StoreBank" WHERE "storeId" = ${storeId} AND "bankId" = ${bankId}
           `;
+          await tx.bank.updateMany({
+            where: { id: bankId, store_id: storeId },
+            data: { store_id: null },
+          });
         }
       }
 
-      // Assign using raw SQL
+      // Assign: StoreBank row + keep Bank.store_id in sync for APIs that still read store_id.
+      // A bank has one primary store_id; remove other StoreBank rows for this bank so we do not
+      // leave stale links when moving a bank between stores in the UI.
       if (assignBankIds && assignBankIds.length > 0) {
         for (const bankId of assignBankIds) {
+          await tx.$executeRaw`
+            DELETE FROM "StoreBank" WHERE "bankId" = ${bankId} AND "storeId" <> ${storeId}
+          `;
           await tx.$executeRaw`
             INSERT INTO "StoreBank" ("storeId", "bankId", "createdAt")
             VALUES (${storeId}, ${bankId}, NOW())
             ON CONFLICT ("storeId", "bankId") DO NOTHING
           `;
+          await tx.bank.update({
+            where: { id: bankId },
+            data: { store_id: storeId },
+          });
         }
       }
     });

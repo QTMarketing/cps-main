@@ -58,6 +58,9 @@ interface Vendor {
     bankName: string;
     dbaName: string;
     accountType: string;
+    storeId?: string | null;
+    storeName?: string | null;
+    storeCode?: string | null;
   }>;
 }
 
@@ -422,6 +425,7 @@ export default function VendorsPage() {
                   <TableRow>
                     <TableHead>Vendor Name</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Stores</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Created</TableHead>
@@ -441,6 +445,32 @@ export default function VendorsPage() {
                         <Badge className={getVendorTypeColor(vendor.vendorType)}>
                           {vendor.vendorType}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const names = Array.from(
+                            new Set(
+                              (vendor.accounts ?? [])
+                                .map((a) => a.storeName)
+                                .filter((n): n is string => !!n)
+                            )
+                          );
+                          if (names.length === 0) return <span className="text-muted-foreground">-</span>;
+                          return (
+                            <div className="flex flex-wrap gap-1 max-w-[220px]">
+                              {names.slice(0, 4).map((n) => (
+                                <Badge key={n} variant="outline" className="text-xs">
+                                  {n}
+                                </Badge>
+                              ))}
+                              {names.length > 4 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{names.length - 4} more
+                                </Badge>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="max-w-[200px] truncate" title={vendor.description}>
