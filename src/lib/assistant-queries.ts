@@ -96,3 +96,40 @@ export async function getRecentChecksSummary(
     })),
   };
 }
+
+export type ChequeTotalsScope = "all" | "pending";
+
+export async function getChequeTotalsSummary(
+  hubUserEmail: string | null | undefined,
+  totalsScope: ChequeTotalsScope = "all",
+) {
+  const scope = await resolveCpsUserScope(hubUserEmail);
+  const where = {
+    ...checkWhere(scope),
+    ...(totalsScope === "pending" ? { status: "PENDING" } : {}),
+  };
+
+  const [aggregate, pendingCount] = await Promise.all([
+    prisma.check.aggregate({
+      where,
+      _sum: { amount: true },
+      _count: { id: true },
+    }),
+    totalsScope === "all"
+      ? prisma.check.count({
+          where: { status: "PENDING", ...checkWhere(scope) },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const totalAmount = aggregate._sum.amount?.toString() ?? "0";
+  const chequeCount = aggregate._count.id;
+
+  return {
+    scope: totalsScope,
+    chequeCount,
+    totalAmount,
+    pendingCount: totalsScope === "all" ? pendingCount : chequeCount,
+    storeName: scope.isAdmin ? null : scope.storeName,
+  };
+}

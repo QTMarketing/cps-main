@@ -28,6 +28,7 @@ export interface AssistantRequestBody {
   hubUserEmail?: string | null;
   hubUserRole?: string | null;
   limit?: number;
+  scope?: string;
 }
 
 export async function readAssistantBody(
