@@ -106,6 +106,16 @@ model User {
   storeUsers                          StoreUser[] // Legacy many-to-many (kept for backward compatibility)
   userBanks                           UserBank[]
   userVendors                         UserVendor[]
+  hubAccountLink                      HubAccountLink?
+}
+
+model HubAccountLink {
+  id          Int      @id @default(autoincrement())
+  hub_user_id String   @unique
+  user_id     Int      @unique
+  linked_via  String
+  created_at  DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model UserBank {

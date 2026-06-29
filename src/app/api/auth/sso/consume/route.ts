@@ -1,30 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
 import { signJwt } from "@/lib/auth";
-import { Role } from "@/lib/roles";
 import { verifyHubSsoToken } from "@/lib/hub-sso";
+import {
+  resolveCpsUserFromHubSso,
+  SsoAccountNotFoundError,
+} from "@/lib/sso-provision";
 
 export const runtime = "nodejs";
 
 const SSO_AUDIENCE = "cps";
 const DEFAULT_REDIRECT = "/write-checks";
-
-function mapHubRoleToCps(hubRole: "ADMIN" | "STAFF", email: string): Role {
-  const superAdminUsername =
-    process.env.SUPER_ADMIN_USERNAME?.toLowerCase().trim() ||
-    "admin@quicktrackinc.com";
-
-  if (email.toLowerCase() === superAdminUsername) {
-    return Role.SUPER_ADMIN;
-  }
-
-  if (hubRole === "ADMIN") {
-    return Role.OFFICE_ADMIN;
-  }
-
-  return Role.USER;
-}
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -45,51 +30,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized", details: message }, { status: 401 });
   }
 
-  const username = payload.email.trim().toLowerCase();
-  const cpsRole = mapHubRoleToCps(payload.role, username);
+  let user;
+  try {
+    user = await resolveCpsUserFromHubSso(payload);
+  } catch (error) {
+    if (error instanceof SsoAccountNotFoundError) {
+      console.warn("[SSO_CONSUME] CPS account not linked:", error.message);
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("sso_error", "account_not_found");
+      loginUrl.searchParams.set("sso_message", error.message);
+      return NextResponse.redirect(loginUrl);
+    }
 
-  let user = await prisma.user.findUnique({
-    where: { username },
-    select: {
-      id: true,
-      username: true,
-      role: true,
-    },
-  });
-
-  if (!user) {
-    const passwordHash = await bcrypt.hash(
-      `sso-provisioned-${payload.sub}`,
-      12
+    const message = error instanceof Error ? error.message : "Provisioning failed";
+    console.error("[SSO_CONSUME] CPS user resolution failed:", message);
+    return NextResponse.json(
+      { error: "Failed to resolve user", details: message },
+      { status: 500 }
     );
-    user = await prisma.user.create({
-      data: {
-        username,
-        password_hash: passwordHash,
-        role: cpsRole,
-      },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-      },
-    });
-  } else if (user.role !== cpsRole && cpsRole === Role.SUPER_ADMIN) {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { role: cpsRole },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-      },
-    });
   }
 
   const sessionToken = signJwt({
     userId: user.id,
     username: user.username,
-    role: (user.role as Role) ?? cpsRole,
+    role: user.role,
   });
 
   const redirectPath =
